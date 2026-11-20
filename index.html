@@ -497,7 +497,7 @@
                 } else {
                     card.innerHTML = `
                         <div class="item-info">
-                            <span class="badge ad">${escapeHtml(item.adType)} • ${item.budget ? escapeHtml(item.budget) + ' BYN/$' : 'Без бюджета'}</span>
+                            <span class="badge ad">${escapeHtml(item.adType)} • ${item.budget ? escapeHtml(item.budget) + ' BYN' : 'Без бюджета'}</span>
                             <h4>${escapeHtml(item.blogger)}</h4>
                             <p>${escapeHtml(item.note)}</p>
                             ${authorHtml}
@@ -587,7 +587,7 @@
                         <select id="inpAdType">
                             <option value="Реклама в Stories">Реклама в Stories</option>
                             <option value="Интеграция в Reels">Интеграция в Reels</option>
-                            <option value="Таргетированная реклама">Таргетированная реклама</option>
+                            <option value="Reels+Stories">Reels+Stories</option>
                             <option value="Бартер">Бартер</option>
                         </select>
                     </div>
