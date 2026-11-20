@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IG Content & Ads Planner (Team)</title>
+    <title>IG Content & Ads Planner</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
@@ -172,6 +172,7 @@
             margin-bottom: 10px;
         }
 
+        /* Карточки */
         .item-card {
             background: var(--secondary-bg);
             padding: 12px;
@@ -180,11 +181,37 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
+            gap: 8px;
+            cursor: pointer;
         }
 
-        .item-info h4 { font-size: 15px; margin-bottom: 4px; }
-        .item-info p { font-size: 13px; color: var(--hint-color); white-space: pre-wrap; }
-        .author-tag { font-size: 11px; color: var(--hint-color); margin-top: 6px; }
+        .item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .item-info h4 {
+            font-size: 15px;
+            margin-bottom: 4px;
+            word-break: break-word;
+        }
+
+        .item-info p {
+            font-size: 13px;
+            color: var(--hint-color);
+            white-space: pre-wrap;
+            word-break: break-word;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .author-tag {
+            font-size: 11px;
+            color: var(--hint-color);
+            margin-top: 6px;
+        }
 
         .badge {
             display: inline-block;
@@ -197,14 +224,27 @@
         .badge.content { background: var(--content-badge); }
         .badge.ad { background: var(--ad-badge); }
 
-        .delete-btn {
-            background: none;
+        .card-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .icon-btn {
+            background: var(--bg-color);
             border: none;
-            color: #ff3b30;
-            font-size: 18px;
-            padding: 4px 8px;
+            border-radius: 8px;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
             cursor: pointer;
         }
+
+        .edit-btn { color: var(--button-color); }
+        .delete-btn { color: #ff3b30; }
 
         .empty-state {
             text-align: center;
@@ -242,6 +282,8 @@
         .modal-content {
             background: var(--bg-color);
             width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
             padding: 20px;
             border-radius: 20px 20px 0 0;
         }
@@ -256,6 +298,36 @@
             background: var(--secondary-bg);
             color: var(--text-color);
             font-size: 15px;
+        }
+
+        .view-box {
+            background: var(--secondary-bg);
+            padding: 14px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .view-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 6px 0 10px 0;
+            word-break: break-word;
+        }
+
+        .view-note {
+            font-size: 15px;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: var(--text-color);
+        }
+
+        .view-meta {
+            font-size: 12px;
+            color: var(--hint-color);
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(128,128,128,0.15);
         }
 
         .error-msg {
@@ -277,6 +349,7 @@
         }
         .btn-cancel { background: var(--secondary-bg); color: var(--text-color); }
         .btn-save { background: var(--button-color); color: var(--button-text); }
+        .btn-danger { background: rgba(255, 59, 48, 0.12); color: #ff3b30; }
     </style>
 </head>
 <body>
@@ -315,7 +388,7 @@
 
     <button class="add-btn" id="openModalBtn">+ Добавить запись</button>
 
-    <!-- Модалка добавления записи -->
+    <!-- Модалка добавления / редактирования записи -->
     <div class="modal" id="modal">
         <div class="modal-content">
             <h3 id="modalTitle" style="margin-bottom: 14px;">Новая запись</h3>
@@ -324,6 +397,18 @@
             <div class="modal-actions">
                 <button class="btn-cancel" id="closeModalBtn">Отмена</button>
                 <button class="btn-save" id="saveItemBtn">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка просмотра записи в открытом виде -->
+    <div class="modal" id="viewModal">
+        <div class="modal-content">
+            <div id="viewContent"></div>
+            <div class="modal-actions">
+                <button class="btn-danger" id="viewDeleteBtn">Удалить</button>
+                <button class="btn-save" id="viewEditBtn">✎ Редактировать</button>
+                <button class="btn-cancel" id="closeViewModalBtn">Закрыть</button>
             </div>
         </div>
     </div>
@@ -348,7 +433,7 @@
     </div>
 
     <script>
-        // ⚠️ ВСТАВЬТЕ СЮДА ССЫЛКУ НА ВАШУ БАЗУ FIREBASE (БЕЗ СЛЭША В КОНЦЕ)
+        // ВСТАВЬТЕ СЮДА ССЫЛКУ НА ВАШУ БАЗУ FIREBASE (БЕЗ СЛЭША В КОНЦЕ)
         const FIREBASE_DB_URL = "https://tg-planner-3f9d0-default-rtdb.europe-west1.firebasedatabase.app";
 
         const tg = window.Telegram.WebApp;
@@ -361,6 +446,8 @@
         let activeTab = 'content';
         let storeData = {};
         let roomId = localStorage.getItem('planner_room_id') || '';
+        let editingIndex = null;
+        let viewingIndex = null;
 
         function escapeHtml(str) {
             return String(str || '')
@@ -375,7 +462,12 @@
             dot.className = 'status-dot ' + state;
         }
 
-        // Загрузка данных из Firebase
+        function isAnyModalOpen() {
+            return document.getElementById('modal').classList.contains('open') ||
+                   document.getElementById('viewModal').classList.contains('open') ||
+                   document.getElementById('roomModal').classList.contains('open');
+        }
+
         async function fetchCloudData() {
             if (!roomId) return;
             setStatus('syncing');
@@ -391,7 +483,6 @@
             }
         }
 
-        // Сохранение данных в Firebase
         async function pushCloudData() {
             if (!roomId) return;
             setStatus('syncing');
@@ -413,6 +504,10 @@
             const m = String(date.getMonth() + 1).padStart(2, '0');
             const d = String(date.getDate()).padStart(2, '0');
             return `${y}-${m}-${d}`;
+        }
+
+        function formatDisplayDate(dateStr) {
+            return dateStr.split('-').reverse().join('.');
         }
 
         function renderCalendar() {
@@ -468,7 +563,7 @@
         function renderItems() {
             const list = document.getElementById('itemsList');
             document.getElementById('selectedDateLabel').textContent =
-                `План на ${selectedDateStr.split('-').reverse().join('.')}`;
+                `План на ${formatDisplayDate(selectedDateStr)}`;
             list.innerHTML = '';
 
             const dayData = storeData[selectedDateStr] || { content: [], ads: [] };
@@ -486,23 +581,29 @@
 
                 if (activeTab === 'content') {
                     card.innerHTML = `
-                        <div class="item-info">
+                        <div class="item-info" onclick="openViewModal(${index})">
                             <span class="badge content">${escapeHtml(item.format)}</span>
                             <h4>${escapeHtml(item.title)}</h4>
                             <p>${escapeHtml(item.note)}</p>
                             ${authorHtml}
                         </div>
-                        <button class="delete-btn" onclick="deleteItem(${index})">✕</button>
+                        <div class="card-actions">
+                            <button class="icon-btn edit-btn" onclick="openEditModal(${index})" title="Редактировать">✎</button>
+                            <button class="icon-btn delete-btn" onclick="deleteItem(${index})" title="Удалить">✕</button>
+                        </div>
                     `;
                 } else {
                     card.innerHTML = `
-                        <div class="item-info">
+                        <div class="item-info" onclick="openViewModal(${index})">
                             <span class="badge ad">${escapeHtml(item.adType)} • ${item.budget ? escapeHtml(item.budget) + ' BYN' : 'Без бюджета'}</span>
                             <h4>${escapeHtml(item.blogger)}</h4>
                             <p>${escapeHtml(item.note)}</p>
                             ${authorHtml}
                         </div>
-                        <button class="delete-btn" onclick="deleteItem(${index})">✕</button>
+                        <div class="card-actions">
+                            <button class="icon-btn edit-btn" onclick="openEditModal(${index})" title="Редактировать">✎</button>
+                            <button class="icon-btn delete-btn" onclick="deleteItem(${index})" title="Удалить">✕</button>
+                        </div>
                     `;
                 }
                 list.appendChild(card);
@@ -515,6 +616,64 @@
             renderItems();
         }
 
+        // Просмотр в открытом виде
+        const viewModal = document.getElementById('viewModal');
+
+        window.openViewModal = function(index) {
+            const dayData = storeData[selectedDateStr];
+            if (!dayData || !Array.isArray(dayData[activeTab]) || !dayData[activeTab][index]) return;
+
+            viewingIndex = index;
+            const item = dayData[activeTab][index];
+            const container = document.getElementById('viewContent');
+
+            const metaLines = [];
+            metaLines.push(`Дата: ${formatDisplayDate(selectedDateStr)}`);
+            if (item.author) metaLines.push(`Создал(а): ${escapeHtml(item.author)}`);
+            if (item.updatedBy) metaLines.push(`Изменил(а): ${escapeHtml(item.updatedBy)}`);
+
+            if (activeTab === 'content') {
+                container.innerHTML = `
+                    <div class="view-box">
+                        <span class="badge content">${escapeHtml(item.format)}</span>
+                        <div class="view-title">${escapeHtml(item.title)}</div>
+                        <div class="view-note">${item.note ? escapeHtml(item.note) : '<span style="color:var(--hint-color)">Заметок нет</span>'}</div>
+                        <div class="view-meta">${metaLines.join(' • ')}</div>
+                    </div>
+                `;
+            } else {
+                const budgetText = item.budget ? `${escapeHtml(item.budget)} BYN/$` : 'Без бюджета';
+                container.innerHTML = `
+                    <div class="view-box">
+                        <span class="badge ad">${escapeHtml(item.adType)} • ${budgetText}</span>
+                        <div class="view-title">${escapeHtml(item.blogger)}</div>
+                        <div class="view-note">${item.note ? escapeHtml(item.note) : '<span style="color:var(--hint-color)">Детали не указаны</span>'}</div>
+                        <div class="view-meta">${metaLines.join(' • ')}</div>
+                    </div>
+                `;
+            }
+
+            viewModal.classList.add('open');
+        };
+
+        document.getElementById('closeViewModalBtn').onclick = () => {
+            viewModal.classList.remove('open');
+            viewingIndex = null;
+        };
+
+        document.getElementById('viewEditBtn').onclick = () => {
+            const idx = viewingIndex;
+            viewModal.classList.remove('open');
+            if (idx !== null) openEditModal(idx);
+        };
+
+        document.getElementById('viewDeleteBtn').onclick = async () => {
+            const idx = viewingIndex;
+            viewModal.classList.remove('open');
+            viewingIndex = null;
+            if (idx !== null) await deleteItem(idx);
+        };
+
         window.deleteItem = async function(index) {
             await fetchCloudData();
             if (storeData[selectedDateStr] && Array.isArray(storeData[selectedDateStr][activeTab])) {
@@ -524,6 +683,168 @@
             }
         };
 
+        // Форма добавления и редактирования
+        const modal = document.getElementById('modal');
+        const formError = document.getElementById('formError');
+
+        function buildFormFields(existingItem = null, targetDate = selectedDateStr) {
+            formError.style.display = 'none';
+            const fields = document.getElementById('formFields');
+
+            if (activeTab === 'content') {
+                document.getElementById('modalTitle').textContent = existingItem ? 'Редактировать контент' : 'Добавить контент';
+                fields.innerHTML = `
+                    <div class="form-group">
+                        <label>Дата публикации</label>
+                        <input type="date" id="inpDate" value="${targetDate}">
+                    </div>
+                    <div class="form-group">
+                        <label>Формат</label>
+                        <select id="inpFormat">
+                            <option value="Reels">Reels</option>
+                            <option value="Пост / Карусель">Пост / Карусель</option>
+                            <option value="Stories">Stories</option>
+                            <option value="Прямой эфир">Прямой эфир</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Тема / Заголовок</label>
+                        <input type="text" id="inpTitle" placeholder="Например: Обзор новинки">
+                    </div>
+                    <div class="form-group">
+                        <label>Заметки / Сценарий / Тезисы</label>
+                        <textarea id="inpNote" rows="5" placeholder="Время публикации, идеи, текст..."></textarea>
+                    </div>
+                `;
+                if (existingItem) {
+                    document.getElementById('inpFormat').value = existingItem.format || 'Reels';
+                    document.getElementById('inpTitle').value = existingItem.title || '';
+                    document.getElementById('inpNote').value = existingItem.note || '';
+                }
+            } else {
+                document.getElementById('modalTitle').textContent = existingItem ? 'Редактировать рекламу' : 'Добавить рекламу';
+                fields.innerHTML = `
+                    <div class="form-group">
+                        <label>Дата выхода</label>
+                        <input type="date" id="inpDate" value="${targetDate}">
+                    </div>
+                    <div class="form-group">
+                        <label>Площадка / Блогер (@ник)</label>
+                        <input type="text" id="inpBlogger" placeholder="@username или Таргет">
+                    </div>
+                    <div class="form-group">
+                        <label>Тип размещения</label>
+                        <select id="inpAdType">
+                            <option value="Реклама в Stories">Реклама в Stories</option>
+                            <option value="Интеграция в Reels">Интеграция в Reels</option>
+                            <option value="Reels + Stories">Reels + Stories</option>
+                            <option value="Бартер">Бартер</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Стоимость / Бюджет</label>
+                        <input type="number" id="inpBudget" placeholder="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Детали (ТЗ, промокод, статус оплаты)</label>
+                        <textarea id="inpNote" rows="5" placeholder="Оплачено 50%, макет готов"></textarea>
+                    </div>
+                `;
+                if (existingItem) {
+                    document.getElementById('inpBlogger').value = existingItem.blogger || '';
+                    document.getElementById('inpAdType').value = existingItem.adType || 'Реклама в Stories';
+                    document.getElementById('inpBudget').value = existingItem.budget || '';
+                    document.getElementById('inpNote').value = existingItem.note || '';
+                }
+            }
+        }
+
+        document.getElementById('openModalBtn').onclick = () => {
+            if (!roomId) {
+                openRoomModal();
+                return;
+            }
+            editingIndex = null;
+            buildFormFields(null, selectedDateStr);
+            modal.classList.add('open');
+        };
+
+        window.openEditModal = function(index) {
+            const dayData = storeData[selectedDateStr];
+            if (!dayData || !Array.isArray(dayData[activeTab]) || !dayData[activeTab][index]) return;
+            editingIndex = index;
+            buildFormFields(dayData[activeTab][index], selectedDateStr);
+            modal.classList.add('open');
+        };
+
+        document.getElementById('closeModalBtn').onclick = () => {
+            modal.classList.remove('open');
+            editingIndex = null;
+        };
+
+        document.getElementById('saveItemBtn').onclick = async () => {
+            formError.style.display = 'none';
+            const newDateStr = document.getElementById('inpDate').value || selectedDateStr;
+            let itemPayload = null;
+
+            if (activeTab === 'content') {
+                const title = document.getElementById('inpTitle').value.trim();
+                if (!title) {
+                    formError.textContent = 'Введите тему публикации';
+                    formError.style.display = 'block';
+                    return;
+                }
+                itemPayload = {
+                    format: document.getElementById('inpFormat').value,
+                    title: title,
+                    note: document.getElementById('inpNote').value.trim()
+                };
+            } else {
+                const blogger = document.getElementById('inpBlogger').value.trim();
+                if (!blogger) {
+                    formError.textContent = 'Укажите блогера или площадку';
+                    formError.style.display = 'block';
+                    return;
+                }
+                itemPayload = {
+                    blogger: blogger,
+                    adType: document.getElementById('inpAdType').value,
+                    budget: document.getElementById('inpBudget').value.trim(),
+                    note: document.getElementById('inpNote').value.trim()
+                };
+            }
+
+            const isEditing = editingIndex !== null;
+            const prevIndex = editingIndex;
+            const prevDateStr = selectedDateStr;
+
+            modal.classList.remove('open');
+            editingIndex = null;
+
+            await fetchCloudData();
+
+            if (isEditing && storeData[prevDateStr] && Array.isArray(storeData[prevDateStr][activeTab]) && storeData[prevDateStr][activeTab][prevIndex]) {
+                const oldItem = storeData[prevDateStr][activeTab][prevIndex];
+                itemPayload.author = oldItem.author || userName;
+                itemPayload.updatedBy = userName;
+                storeData[prevDateStr][activeTab].splice(prevIndex, 1);
+            } else {
+                itemPayload.author = userName;
+            }
+
+            if (!storeData[newDateStr]) storeData[newDateStr] = { content: [], ads: [] };
+            if (!Array.isArray(storeData[newDateStr][activeTab])) storeData[newDateStr][activeTab] = [];
+            storeData[newDateStr][activeTab].push(itemPayload);
+
+            selectedDateStr = newDateStr;
+            const [y, m] = newDateStr.split('-').map(Number);
+            currentDate = new Date(y, m - 1, 1);
+
+            renderAll();
+            await pushCloudData();
+        };
+
+        // Вкладки и навигация
         document.querySelectorAll('.tab').forEach(tab => {
             tab.onclick = () => {
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -542,112 +863,6 @@
             renderCalendar();
         };
         document.getElementById('refreshBtn').onclick = () => fetchCloudData();
-
-        // Модалка добавления записи
-        const modal = document.getElementById('modal');
-        const formError = document.getElementById('formError');
-
-        document.getElementById('openModalBtn').onclick = () => {
-            if (!roomId) {
-                openRoomModal();
-                return;
-            }
-            formError.style.display = 'none';
-            const fields = document.getElementById('formFields');
-            if (activeTab === 'content') {
-                document.getElementById('modalTitle').textContent = 'Добавить контент';
-                fields.innerHTML = `
-                    <div class="form-group">
-                        <label>Формат</label>
-                        <select id="inpFormat">
-                            <option value="Reels">Reels</option>
-                            <option value="Пост / Карусель">Пост / Карусель</option>
-                            <option value="Stories">Stories</option>
-                            <option value="Прямой эфир">Прямой эфир</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Тема / Заголовок</label>
-                        <input type="text" id="inpTitle" placeholder="Например: Обзор новинки">
-                    </div>
-                    <div class="form-group">
-                        <label>Заметки / Тезисы</label>
-                        <textarea id="inpNote" rows="2" placeholder="Время публикации, идеи..."></textarea>
-                    </div>
-                `;
-            } else {
-                document.getElementById('modalTitle').textContent = 'Добавить рекламу';
-                fields.innerHTML = `
-                    <div class="form-group">
-                        <label>Площадка / Блогер (@ник)</label>
-                        <input type="text" id="inpBlogger" placeholder="@username или Таргет">
-                    </div>
-                    <div class="form-group">
-                        <label>Тип размещения</label>
-                        <select id="inpAdType">
-                            <option value="Реклама в Stories">Реклама в Stories</option>
-                            <option value="Интеграция в Reels">Интеграция в Reels</option>
-                            <option value="Reels+Stories">Reels+Stories</option>
-                            <option value="Бартер">Бартер</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Стоимость / Бюджет</label>
-                        <input type="number" id="inpBudget" placeholder="100">
-                    </div>
-                    <div class="form-group">
-                        <label>Детали (ТЗ, промокод, статус оплаты)</label>
-                        <textarea id="inpNote" rows="2" placeholder="Оплачено 50%, макет готов"></textarea>
-                    </div>
-                `;
-            }
-            modal.classList.add('open');
-        };
-
-        document.getElementById('closeModalBtn').onclick = () => modal.classList.remove('open');
-
-        document.getElementById('saveItemBtn').onclick = async () => {
-            formError.style.display = 'none';
-            let newItem = null;
-
-            if (activeTab === 'content') {
-                const title = document.getElementById('inpTitle').value.trim();
-                if (!title) {
-                    formError.textContent = 'Введите тему публикации';
-                    formError.style.display = 'block';
-                    return;
-                }
-                newItem = {
-                    format: document.getElementById('inpFormat').value,
-                    title: title,
-                    note: document.getElementById('inpNote').value.trim(),
-                    author: userName
-                };
-            } else {
-                const blogger = document.getElementById('inpBlogger').value.trim();
-                if (!blogger) {
-                    formError.textContent = 'Укажите блогера или площадку';
-                    formError.style.display = 'block';
-                    return;
-                }
-                newItem = {
-                    blogger: blogger,
-                    adType: document.getElementById('inpAdType').value,
-                    budget: document.getElementById('inpBudget').value.trim(),
-                    note: document.getElementById('inpNote').value.trim(),
-                    author: userName
-                };
-            }
-
-            modal.classList.remove('open');
-            await fetchCloudData();
-            if (!storeData[selectedDateStr]) storeData[selectedDateStr] = { content: [], ads: [] };
-            if (!Array.isArray(storeData[selectedDateStr][activeTab])) storeData[selectedDateStr][activeTab] = [];
-            
-            storeData[selectedDateStr][activeTab].push(newItem);
-            renderAll();
-            await pushCloudData();
-        };
 
         // Управление комнатой
         const roomModal = document.getElementById('roomModal');
@@ -677,14 +892,12 @@
             await fetchCloudData();
         };
 
-        // Автообновление каждые 15 секунд
         setInterval(() => {
-            if (roomId && !modal.classList.contains('open')) {
+            if (roomId && !isAnyModalOpen()) {
                 fetchCloudData();
             }
         }, 15000);
 
-        // Старт
         renderAll();
         if (!roomId) {
             openRoomModal();
