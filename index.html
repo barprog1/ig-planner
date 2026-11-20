@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IG Content & Ads Planner</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg-color: var(--tg-theme-bg-color, #ffffff);
+            --text-color: var(--tg-theme-text-color, #222222);
+            --hint-color: var(--tg-theme-hint-color, #999999);
+            --link-color: var(--tg-theme-link-color, #2481cc);
+            --button-color: var(--tg-theme-button-color, #2481cc);
+            --button-text: var(--tg-theme-button-text-color, #ffffff);
+            --secondary-bg: var(--tg-theme-secondary-bg-color, #f4f4f5);
+            --content-badge: #e1306c;
+            --ad-badge: #2ea043;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 16px;
+            padding-bottom: 80px;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .calendar-header button {
+            background: var(--secondary-bg);
+            border: none;
+            color: var(--text-color);
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .month-title {
+            font-weight: 600;
+            font-size: 17px;
+            text-transform: capitalize;
+        }
+
+        .weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            text-align: center;
+            font-size: 12px;
+            color: var(--hint-color);
+            margin-bottom: 6px;
+        }
+
+        .days-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            margin-bottom: 20px;
+        }
+
+        .day-cell {
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            position: relative;
+            background: var(--secondary-bg);
+        }
+
+        .day-cell.empty {
+            background: transparent;
+            cursor: default;
+        }
+
+        .day-cell.selected {
+            background: var(--button-color);
+            color: var(--button-text);
+            font-weight: bold;
+        }
+
+        .dots {
+            display: flex;
+            gap: 3px;
+            position: absolute;
+            bottom: 4px;
+        }
+
+        .dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+        }
+
+        .dot.content { background-color: var(--content-badge); }
+        .dot.ad { background-color: var(--ad-badge); }
+
+        .tabs {
+            display: flex;
+            background: var(--secondary-bg);
+            padding: 4px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .tab.active {
+            background: var(--bg-color);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        }
+
+        .section-title {
+            font-size: 15px;
+            color: var(--hint-color);
+            margin-bottom: 10px;
+        }
+
+        .item-card {
+            background: var(--secondary-bg);
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .item-info h4 {
+            font-size: 15px;
+            margin-bottom: 4px;
+        }
+
+        .item-info p {
+            font-size: 13px;
+            color: var(--hint-color);
+        }
+
+        .badge {
+            display: inline-block;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .badge.content { background: var(--content-badge); }
+        .badge.ad { background: var(--ad-badge); }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #ff3b30;
+            font-size: 18px;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--hint-color);
+            padding: 24px 0;
+            font-size: 14px;
+        }
+
+        .add-btn {
+            position: fixed;
+            bottom: 16px;
+            left: 16px;
+            right: 16px;
+            background: var(--button-color);
+            color: var(--button-text);
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            align-items: flex-end;
+            z-index: 100;
+        }
+
+        .modal.open { display: flex; }
+
+        .modal-content {
+            background: var(--bg-color);
+            width: 100%;
+            padding: 20px;
+            border-radius: 20px 20px 0 0;
+            animation: slideUp 0.2s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 13px; color: var(--hint-color); margin-bottom: 4px; }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--secondary-bg);
+            background: var(--secondary-bg);
+            color: var(--text-color);
+            font-size: 15px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .modal-actions button {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-cancel { background: var(--secondary-bg); color: var(--text-color); }
+        .btn-save { background: var(--button-color); color: var(--button-text); }
+    </style>
+</head>
+<body>
+
+    <div class="calendar-header">
+        <button id="prevMonth">&lt;</button>
+        <div class="month-title" id="monthTitle"></div>
+        <button id="nextMonth">&gt;</button>
+    </div>
+    <div class="weekdays">
+        <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+    </div>
+    <div class="days-grid" id="daysGrid"></div>
+
+    <div class="tabs">
+        <div class="tab active" data-tab="content">📸 Контент-план</div>
+        <div class="tab" data-tab="ads">📢 Реклама</div>
+    </div>
+
+    <div class="section-title" id="selectedDateLabel">Записи на выбранную дату</div>
+    <div id="itemsList"></div>
+
+    <button class="add-btn" id="openModalBtn">+ Добавить запись</button>
+
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <h3 id="modalTitle" style="margin-bottom: 14px;">Новая запись</h3>
+            <div id="formFields"></div>
+            <div class="modal-actions">
+                <button class="btn-cancel" id="closeModalBtn">Отмена</button>
+                <button class="btn-save" id="saveItemBtn">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        let currentDate = new Date();
+        let selectedDateStr = formatDate(new Date());
+        let activeTab = 'content';
+        let storeData = {};
+
+        function loadData() {
+            if (tg.CloudStorage) {
+                tg.CloudStorage.getItem('planner_data', (err, value) => {
+                    if (!err && value) {
+                        try { storeData = JSON.parse(value); } catch (e) {}
+                    }
+                    renderAll();
+                });
+            } else {
+                const local = localStorage.getItem('planner_data');
+                if (local) storeData = JSON.parse(local);
+                renderAll();
+            }
+        }
+
+        function saveData() {
+            const str = JSON.stringify(storeData);
+            if (tg.CloudStorage) {
+                tg.CloudStorage.setItem('planner_data', str);
+            } else {
+                localStorage.setItem('planner_data', str);
+            }
+        }
+
+        function formatDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function renderCalendar() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            
+            const monthName = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' }).format(currentDate);
+            document.getElementById('monthTitle').textContent = monthName;
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            const grid = document.getElementById('daysGrid');
+            grid.innerHTML = '';
+
+            for (let i = 0; i < startOffset; i++) {
+                const empty = document.createElement('div');
+                empty.className = 'day-cell empty';
+                grid.appendChild(empty);
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const cell = document.createElement('div');
+                cell.className = 'day-cell' + (dateStr === selectedDateStr ? ' selected' : '');
+                cell.textContent = day;
+
+                const dayData = storeData[dateStr];
+                if (dayData) {
+                    const dots = document.createElement('div');
+                    dots.className = 'dots';
+                    if (dayData.content && dayData.content.length > 0) {
+                        const d = document.createElement('span');
+                        d.className = 'dot content';
+                        dots.appendChild(d);
+                    }
+                    if (dayData.ads && dayData.ads.length > 0) {
+                        const d = document.createElement('span');
+                        d.className = 'dot ad';
+                        dots.appendChild(d);
+                    }
+                    cell.appendChild(dots);
+                }
+
+                cell.onclick = () => {
+                    selectedDateStr = dateStr;
+                    renderAll();
+                };
+                grid.appendChild(cell);
+            }
+        }
+
+        function renderItems() {
+            const list = document.getElementById('itemsList');
+            document.getElementById('selectedDateLabel').textContent = `План на ${selectedDateStr.split('-').reverse().join('.')}`;
+            list.innerHTML = '';
+
+            const dayData = storeData[selectedDateStr] || { content: [], ads: [] };
+            const items = dayData[activeTab] || [];
+
+            if (items.length === 0) {
+                list.innerHTML = `<div class="empty-state">На эту дату записей пока нет</div>`;
+                return;
+            }
+
+            items.forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = 'item-card';
+
+                if (activeTab === 'content') {
+                    card.innerHTML = `
+                        <div class="item-info">
+                            <span class="badge content">${item.format}</span>
+                            <h4>${item.title}</h4>
+                            <p>${item.note || ''}</p>
+                        </div>
+                        <button class="delete-btn" onclick="deleteItem(${index})">✕</button>
+                    `;
+                } else {
+                    card.innerHTML = `
+                        <div class="item-info">
+                            <span class="badge ad">${item.adType} • ${item.budget ? item.budget + ' BYN/$' : 'Без бюджета'}</span>
+                            <h4>${item.blogger}</h4>
+                            <p>${item.note || ''}</p>
+                        </div>
+                        <button class="delete-btn" onclick="deleteItem(${index})">✕</button>
+                    `;
+                }
+                list.appendChild(card);
+            });
+        }
+
+        function renderAll() {
+            renderCalendar();
+            renderItems();
+        }
+
+        window.deleteItem = function(index) {
+            storeData[selectedDateStr][activeTab].splice(index, 1);
+            saveData();
+            renderAll();
+        };
+
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.onclick = () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                activeTab = tab.dataset.tab;
+                renderItems();
+            };
+        });
+
+        document.getElementById('prevMonth').onclick = () => {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            renderCalendar();
+        };
+        document.getElementById('nextMonth').onclick = () => {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            renderCalendar();
+        };
+
+        const modal = document.getElementById('modal');
+        document.getElementById('openModalBtn').onclick = () => {
+            const fields = document.getElementById('formFields');
+            if (activeTab === 'content') {
+                document.getElementById('modalTitle').textContent = 'Добавить контент';
+                fields.innerHTML = `
+                    <div class="form-group">
+                        <label>Формат</label>
+                        <select id="inpFormat">
+                            <option value="Reels">Reels</option>
+                            <option value="Пост / Карусель">Пост / Карусель</option>
+                            <option value="Stories">Stories</option>
+                            <option value="Прямой эфир">Прямой эфир</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Тема / Заголовок</label>
+                        <input type="text" id="inpTitle" placeholder="Например: Обзор новинки">
+                    </div>
+                    <div class="form-group">
+                        <label>Заметки / Тезисы</label>
+                        <textarea id="inpNote" rows="2" placeholder="Время публикации, идеи..."></textarea>
+                    </div>
+                `;
+            } else {
+                document.getElementById('modalTitle').textContent = 'Добавить рекламу';
+                fields.innerHTML = `
+                    <div class="form-group">
+                        <label>Площадка / Блогер (@ник)</label>
+                        <input type="text" id="inpBlogger" placeholder="@username или Таргет">
+                    </div>
+                    <div class="form-group">
+                        <label>Тип размещения</label>
+                        <select id="inpAdType">
+                            <option value="Реклама в Stories">Реклама в Stories</option>
+                            <option value="Интеграция в Reels">Интеграция в Reels</option>
+                            <option value="Таргетированная реклама">Таргетированная реклама</option>
+                            <option value="Бартер">Бартер</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Стоимость / Бюджет</label>
+                        <input type="number" id="inpBudget" placeholder="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Детали (ТЗ, промокод, статус оплаты)</label>
+                        <textarea id="inpNote" rows="2" placeholder="Оплачено 50%, макет готов"></textarea>
+                    </div>
+                `;
+            }
+            modal.classList.add('open');
+        };
+
+        document.getElementById('closeModalBtn').onclick = () => modal.classList.remove('open');
+
+        document.getElementById('saveItemBtn').onclick = () => {
+            if (!storeData[selectedDateStr]) {
+                storeData[selectedDateStr] = { content: [], ads: [] };
+            }
+
+            if (activeTab === 'content') {
+                const title = document.getElementById('inpTitle').value.trim();
+                if (!title) return alert('Введите тему публикации');
+                storeData[selectedDateStr].content.push({
+                    format: document.getElementById('inpFormat').value,
+                    title: title,
+                    note: document.getElementById('inpNote').value.trim()
+                });
+            } else {
+                const blogger = document.getElementById('inpBlogger').value.trim();
+                if (!blogger) return alert('Укажите блогера или площадку');
+                storeData[selectedDateStr].ads.push({
+                    blogger: blogger,
+                    adType: document.getElementById('inpAdType').value,
+                    budget: document.getElementById('inpBudget').value.trim(),
+                    note: document.getElementById('inpNote').value.trim()
+                });
+            }
+
+            saveData();
+            modal.classList.remove('open');
+            renderAll();
+        };
+
+        loadData();
+    </script>
+</body>
+</html>
